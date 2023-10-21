@@ -77,9 +77,18 @@ module dm_mem #(
   localparam logic [DbgAddressBits-1:0] FlagsEndAddr  = 'h7FF;
 
   localparam logic [DbgAddressBits-1:0] HaltedAddr    = 'h100;
-  localparam logic [DbgAddressBits-1:0] GoingAddr     = 'h104;
-  localparam logic [DbgAddressBits-1:0] ResumingAddr  = 'h108;
-  localparam logic [DbgAddressBits-1:0] ExceptionAddr = 'h10C;
+  localparam logic [DbgAddressBits-1:0] GoingAddr     = 'h108;
+  localparam logic [DbgAddressBits-1:0] ResumingAddr  = 'h110;
+  localparam logic [DbgAddressBits-1:0] ExceptionAddr = 'h118;
+
+  // Mohammed's changes start.
+  localparam logic [DbgAddressBits-1:0] PMUHaltAddr   = 'h200;
+  localparam logic [DbgAddressBits-1:0] PMUResumeAddr = 'h208;
+  logic [NrHarts-1:0] pmu_axi_halt_d;
+  logic [NrHarts-1:0] pmu_axi_halt_q;
+  logic [NrHarts-1:0] pmu_force_resume_d;
+  logic [NrHarts-1:0] pmu_force_resume_q;
+  // Mohammed's changes end.
 
   logic [dm::ProgBufSize/2-1:0][63:0]   progbuf;
   logic [7:0][63:0]   abstract_cmd;
@@ -122,7 +131,10 @@ module dm_mem #(
 
   // Abstract Command Access Register
   assign ac_ar       = dm::ac_ar_cmd_t'(cmd_i.control);
-  assign debug_req_o = haltreq_i;
+  // Mohammed's changes start.
+  // assign debug_req_o = haltreq_i;
+  assign debug_req_o = haltreq_i | pmu_axi_halt_q;
+  // Mohammed's changes end.
   assign halted_o    = halted_q;
   assign resuming_o  = resuming_q;
 
@@ -217,6 +229,10 @@ module dm_mem #(
   logic [63:0] data_bits;
   logic [7:0][7:0] rdata;
   always_comb begin : p_rw_logic
+    // Mohammed's changes start.
+    pmu_axi_halt_d     = pmu_axi_halt_q;
+    pmu_force_resume_d = pmu_force_resume_q;
+    // Mohammed's changes end.
 
     halted_d_aligned   = NrHartsAligned'(halted_q);
     resuming_d_aligned = NrHartsAligned'(resuming_q);
@@ -228,7 +244,7 @@ module dm_mem #(
     // write data in csr register
     data_valid_o   = 1'b0;
     exception      = 1'b0;
-    halted_aligned     = '0;
+    halted_aligned = '0;
     going          = 1'b0;
 
     // The resume ack signal is lowered when the resume request is deasserted
@@ -240,6 +256,20 @@ module dm_mem #(
       // this is a write
       if (we_i) begin
         unique case (addr_i[DbgAddressBits-1:0]) inside
+          // Mohammed's changes start.
+          PMUHaltAddr: begin
+            // Don't halt the hart if it is already halted or requested to halt via JTAG.
+            if (!halted_q_aligned[hartsel] && !haltreq_aligned[hartsel]) begin
+              pmu_axi_halt_d[wdata_hartsel]   = 1'b1; // Signals that CVA6 core is halted.
+            end
+          end
+          PMUResumeAddr: begin
+            pmu_axi_halt_d[wdata_hartsel]     = 1'b0; // Signals that CVA6 will not be halted.
+            // Resume flag is set to indicate that the core is being unhalted,
+            // this flag will be reset by debugger.
+            pmu_force_resume_d[wdata_hartsel] = 1 & pmu_axi_halt_q[wdata_hartsel];
+          end
+          // Mohammed's changes end.
           HaltedAddr: begin
             halted_aligned[wdata_hartsel] = 1'b1;
             halted_d_aligned[wdata_hartsel] = 1'b1;
@@ -252,6 +282,9 @@ module dm_mem #(
             halted_d_aligned[wdata_hartsel] = 1'b0;
             // set the resuming flag which needs to be cleared by the debugger
             resuming_d_aligned[wdata_hartsel] = 1'b1;
+            // Mohammed's changes start.
+            pmu_force_resume_d[wdata_hartsel] = 1'b0;
+            // Mohammed's changes end.
           end
           // an exception occurred during execution
           ExceptionAddr: exception = 1'b1;
@@ -313,8 +346,13 @@ module dm_mem #(
           end
           // harts are polling for flags here
           [FlagsBaseAddr:FlagsEndAddr]: begin
+            // if force_resume then keep the RESUME flag bit 1.
+            // Mohammed's changes start.
+            if (pmu_force_resume_q[wdata_hartsel]) begin
+              rdata = 64'b10; // Resume flag is 1.
+            // Mohammed's changes end.
             // release the corresponding hart
-            if (({addr_i[DbgAddressBits-1:3], 3'b0} - FlagsBaseAddr[DbgAddressBits-1:0]) ==
+            end else if (({addr_i[DbgAddressBits-1:3], 3'b0} - FlagsBaseAddr[DbgAddressBits-1:0]) ==
               (DbgAddressBits'(hartsel) & {{(DbgAddressBits-3){1'b1}}, 3'b0})) begin
               rdata[DbgAddressBits'(hartsel) & DbgAddressBits'(3'b111)] = {6'b0, resume, go};
             end
@@ -327,6 +365,18 @@ module dm_mem #(
 
     data_o = data_bits;
   end
+
+  // Mohammed's changes start.
+  always_ff @ (posedge clk_i) begin
+    if (!rst_ni) begin
+      pmu_axi_halt_q      <= '0;
+      pmu_force_resume_q  <= '0;
+    end else begin
+      pmu_axi_halt_q      <= pmu_axi_halt_d;
+      pmu_force_resume_q  <= pmu_force_resume_d;
+    end
+  end
+  // Mohammed's changes end.
 
   always_comb begin : p_abstract_cmd_rom
     // this abstract command is currently unsupported
