@@ -77,9 +77,9 @@ module dm_mem #(
   localparam logic [DbgAddressBits-1:0] FlagsEndAddr  = 'h7FF;
 
   localparam logic [DbgAddressBits-1:0] HaltedAddr    = 'h100;
-  localparam logic [DbgAddressBits-1:0] GoingAddr     = 'h108;
-  localparam logic [DbgAddressBits-1:0] ResumingAddr  = 'h110;
-  localparam logic [DbgAddressBits-1:0] ExceptionAddr = 'h118;
+  localparam logic [DbgAddressBits-1:0] GoingAddr     = 'h104;
+  localparam logic [DbgAddressBits-1:0] ResumingAddr  = 'h108;
+  localparam logic [DbgAddressBits-1:0] ExceptionAddr = 'h10C;
 
   // Mohammed's changes start.
   localparam logic [DbgAddressBits-1:0] PMUHaltAddr   = 'h200;
