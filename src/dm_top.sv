@@ -24,18 +24,15 @@ module dm_top #(
   // Bitmask to select physically available harts for systems
   // that don't use hart numbers in a contiguous fashion.
   parameter logic [NrHarts-1:0] SelectableHarts  = {NrHarts{1'b1}},
-  // toggle new behavior to drive master_be_o during a read
-  parameter bit                 ReadByteEnable   = 1
+  parameter bit                 ReadByteEnable   = 1 // toggle new behavior to drive master_be_o during a read
 ) (
   input  logic                  clk_i,       // clock
-  // asynchronous reset active low, connect PoR here, not the system reset
-  input  logic                  rst_ni,
+  input  logic                  rst_ni,      // asynchronous reset active low, connect PoR here, not the system reset
   input  logic                  testmode_i,
   output logic                  ndmreset_o,  // non-debug module reset
   output logic                  dmactive_o,  // debug module is active
   output logic [NrHarts-1:0]    debug_req_o, // async debug request
-  // communicate whether the hart is unavailable (e.g.: power down)
-  input  logic [NrHarts-1:0]    unavailable_i,
+  input  logic [NrHarts-1:0]    unavailable_i, // communicate whether the hart is unavailable (e.g.: power down)
   input  dm::hartinfo_t [NrHarts-1:0] hartinfo_i,
 
   input  logic                  slave_req_i,
@@ -52,14 +49,10 @@ module dm_top #(
   output logic [BusWidth/8-1:0] master_be_o,
   input  logic                  master_gnt_i,
   input  logic                  master_r_valid_i,
-  input  logic                  master_r_err_i,
-  input  logic                  master_r_other_err_i, // *other_err_i has priority over *err_i
   input  logic [BusWidth-1:0]   master_r_rdata_i,
 
   // Connection to DTM - compatible to RocketChip Debug Module
-  input  logic                  dmi_rst_ni, // Synchronous clear request from
-                                            // the DTM to clear the DMI response
-                                            // FIFO.
+  input  logic                  dmi_rst_ni,
   input  logic                  dmi_req_valid_i,
   output logic                  dmi_req_ready_o,
   input  dm::dmi_req_t          dmi_req_i,
@@ -86,7 +79,6 @@ module dm_top #(
   logic [dm::DataCount-1:0][31:0]   data_csrs_mem;
   logic [dm::DataCount-1:0][31:0]   data_mem_csrs;
   logic                             data_valid;
-  logic                             ndmreset;
   logic [19:0]                      hartsel;
   // System Bus Access Module
   logic [BusWidth-1:0]              sbaddress_csrs_sba;
@@ -105,7 +97,6 @@ module dm_top #(
   logic                             sberror_valid;
   logic [2:0]                       sberror;
 
-  assign ndmreset_o = ndmreset;
 
   dm_csrs #(
     .NrHarts(NrHarts),
@@ -122,7 +113,7 @@ module dm_top #(
     .dmi_resp_valid_o,
     .dmi_resp_ready_i,
     .dmi_resp_o,
-    .ndmreset_o              ( ndmreset              ),
+    .ndmreset_o,
     .dmactive_o,
     .hartsel_o               ( hartsel               ),
     .hartinfo_i,
@@ -173,8 +164,6 @@ module dm_top #(
     .master_be_o,
     .master_gnt_i,
     .master_r_valid_i,
-    .master_r_err_i,
-    .master_r_other_err_i,
     .master_r_rdata_i,
 
     .sbaddress_i             ( sbaddress_csrs_sba    ),
@@ -203,7 +192,6 @@ module dm_top #(
     .clk_i,
     .rst_ni,
     .debug_req_o,
-    .ndmreset_i              ( ndmreset              ),
     .hartsel_i               ( hartsel               ),
     .haltreq_i               ( haltreq               ),
     .resumereq_i             ( resumereq             ),
