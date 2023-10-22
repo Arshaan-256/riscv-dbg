@@ -348,8 +348,8 @@ module dm_mem #(
           [FlagsBaseAddr:FlagsEndAddr]: begin
             // if force_resume then keep the RESUME flag bit 1.
             // Mohammed's changes start.
-            if (pmu_force_resume_q[wdata_hartsel]) begin
-              rdata = 64'b10; // Resume flag is 1.
+            if (pmu_force_resume_q[addr_i[HartSelLen-1:0]]) begin
+              rdata = 64'd2 << {addr_i[HartSelLen-1:0], 3'b000}; // Resume flag is 1.
             // Mohammed's changes end.
             // release the corresponding hart
             end else if (({addr_i[DbgAddressBits-1:3], 3'b0} - FlagsBaseAddr[DbgAddressBits-1:0]) ==
