@@ -76,7 +76,7 @@ _exception:
         // we do not need to save a0 to a scratch register as it has already
         // been saved on debug entry.
 #ifdef SND_SCRATCH
-        auipc a0, 0                  // Get POC
+        auipc a0, 0                  // Get PC
         srli a0, a0, 12              // And throw away lower 12 bits to get the DM base
         slli a0, a0, 12
         sw   zero, EXCEPTION(a0)     // Let debug module know you got an exception.
